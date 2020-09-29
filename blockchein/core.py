@@ -1,4 +1,4 @@
-
+from urllib.parse import urlparse
 import json
 from time import time
 import hashlib
@@ -8,9 +8,70 @@ class Blockchain(object):
     def __init__(self):
         self.chain = []
         self.current_transactions = []
+        self.nodes = set()
 
 
         self.new_block(proof=100,previous_hash=1)
+
+    def register_node(self,address):
+        """
+        Add a new node to the list of nodes
+        :param address: <str> Address of node.
+        :return: None
+        """
+        parsed_url = urlparse(address)
+        self.nodes.add(parsed_url.netloc) # For instance 127.1.0.1:80
+
+    def valid_chain(self,chain):
+        """
+        Determine if a given blockchain is valid
+        :param chain: <list> A blockchain
+        :return: <bool> True if valid, False if not
+        """
+        last_block = chain[0]
+        current_index = 1
+
+        while current_index < len(chain):
+            block = chain[current_index]
+            print(last_block)
+            print(block)
+            print('\n-----------------\n')
+            if block['previous_hash'] != self.hash(last_block):
+                return False
+
+            last_block = block
+            current_index += 1
+
+        return True
+
+    def resolve_conflicts(self):
+        """
+        This is our Consensus Algorithm, it resolves conflicts
+        by replacing our chain with the longest one in the network.
+        :return: <bool> True if our chain was replaced, False if not
+        """
+
+        neighbours = self.nodes
+        new_chain = None
+
+        max_lenght = len(self.chain)
+
+        for node in neighbours:
+            response = request.get(f'http://{node}/chain')
+
+            if response.status_code == 200:
+                lenght = response.json()['lenght']
+                chain = response.json()['chain']
+
+                if lenght > max_lenght and self.valid_chain(chain):
+                    max_lenght = lenght
+                    new_chain = chain
+        if new_chain:
+            self.chain = new_chain
+            return True
+
+        return False
+
 
     def proof_of_work(self,last_proof):
         """
@@ -36,9 +97,9 @@ class Blockchain(object):
         :return: <bool> True if correct, False if not.
         """
         guess = f'{last_proof}{proof}'.encode()
-        guess_hash = hashlib.sha256(guess).hexgidest()
+        guess_hash = hashlib.sha256(guess).hexdigest()
 
-        return guess_hash[:-4] == "0000"
+        return guess_hash[:4] == "0000"
 
     def new_block(self,proof,previous_hash=None):
         """
@@ -51,13 +112,13 @@ class Blockchain(object):
         block = {
             'index': len(self.chain) + 1,
             'timestamp': time(),
-            'transaction': self.current_transactions,
+            'transactions': self.current_transactions,
             'proof':proof,
             'previous_hash':previous_hash or self.hash(self.chain[-1])
         }
 
         # Reset the current list of transaction
-        self.current_transaction = []
+        self.current_transactions = []
 
         self.chain.append(block)
 
@@ -90,7 +151,7 @@ class Blockchain(object):
         """
 
         block_string = json.dumps(block,sort_keys=True).encode()
-        return hashlib.sha256(block_string).nextdigest()
+        return hashlib.sha256(block_string).hexdigest()
 
     @property
     def last_block(self):
